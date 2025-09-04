@@ -136,23 +136,22 @@
 
   <script>
   ;(function(){
-    // === CONFIG ===
-    const PUBHTML = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT94XcY1sHC-fxbxQBPsYENwhqsGqlEISuVvZocCuu-r2qG_EIWBHtXPibeiGjrV3S_GuKm-tmQlzGP/pubhtml";
-    const CSV_URL = PUBHTML.replace("/pubhtml", "/pub?output=csv");
-    // Fallback proxy (read-only mirror) — tetap HTTPS agar aman
-    const CSV_FALLBACK = "https://r.jina.ai/http://" + CSV_URL.replace(/^https?:\/\//, "");
-    // Google Visualization CSV endpoint (sering lebih stabil)
-    const GVIZ_CSV = PUBHTML.replace('/pubhtml','/gviz/tq?tqx=out:csv');
-    const GVIZ_FALLBACK = "https://r.jina.ai/http://" + GVIZ_CSV.replace(/^https?:\/\//, "");
+    // ====== CONFIG (Dokumen yang Anda minta) ======
+    const DOC_ID = '1ESGkZf2P_0XMnyJgb7wN_L_Xo144nO6GPg30rrBZW58';
+    const SHEET  = 'Sheet1';
 
-    // Column indexes (0-based)
+    // Endpoints yang stabil (urutan fallback)
+    const GVIZ_JSON = `https://docs.google.com/spreadsheets/d/${DOC_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET)}`;
+    const GVIZ_CSV  = `https://docs.google.com/spreadsheets/d/${DOC_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET)}`;
+    const MIRROR = u => 'https://r.jina.ai/http://' + u.replace(/^https?:\/\//,'');
+
+    // Index kolom sesuai permintaan: C=Area, D=Nama Job, E=Job Parent, F=Kualifikasi
     const COL = { AREA:2, JOB_NAME:3, JOB_PARENT:4, QUAL:5 };
 
-    // Cache (stale-while-revalidate)
-    const CACHE_KEY = "lookerin_csv_cache_v1";
-    const CACHE_MAX_AGE = 10 * 60 * 1000; // 10 menit
+    // Cache ringan
+    const CACHE_KEY = 'lookerin_cache_v2';
 
-    // Elements
+    // ====== Elemen ======
     const $grid = document.getElementById('grid');
     const $status = document.getElementById('status');
     const $area = document.getElementById('f-area');
@@ -167,92 +166,95 @@
     const $dBranch = document.getElementById('dlg-branch');
     const $dParent = document.getElementById('dlg-parent');
     const $dQual = document.getElementById('dlg-qual');
-    const $dApply = document.getElementById('dlg-apply');
 
-    let rows = []; // data rows tanpa header
+    let rows = [];
 
-    // ===== Util =====
+    // ====== Util ======
     const collator = new Intl.Collator('id');
-    function uniq(arr){ return [...new Set(arr.filter(Boolean))].sort((a,b)=>collator.compare(a,b)); }
-    function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
-    function nl2br(htmlEscaped){ return htmlEscaped.replace(/\r?\n/g,'<br>'); }
+    const uniq = arr => [...new Set(arr.filter(Boolean))].sort((a,b)=>collator.compare(a,b));
+    const esc = s => String(s||'').replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+    const nl2br = s => String(s||'').replace(/
+?
+/g,'<br>');
 
     function setOptions(el, list, placeholder){
-      el.innerHTML = `<option value="">${placeholder}</option>` + list.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+      el.innerHTML = `<option value="">${placeholder}</option>` + list.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
     }
 
-    // CSV parser ROBUST: mendukung newline di dalam tanda kutip
+    // Parser CSV yang robust (kutip & newline)
     function parseCSV(text){
-      const out = []; let row = []; let cur = ''; let inQ = false;
+      const out=[]; let row=[]; let cur=''; let inQ=false;
       for(let i=0;i<text.length;i++){
-        const c = text[i];
-        if(c === '"'){
-          if(inQ && text[i+1] === '"'){ cur += '"'; i++; }
-          else { inQ = !inQ; }
-        } else if(c === ',' && !inQ){ row.push(cur); cur = ''; }
-        else if((c === '\n' || c === '\r') && !inQ){
-          if(c === '\r' && text[i+1] === '\n') i++; // CRLF
-          row.push(cur); out.push(row); row = []; cur = '';
-        } else { cur += c; }
+        const c=text[i];
+        if(c==='"'){
+          if(inQ && text[i+1]==='"'){ cur+='"'; i++; } else inQ=!inQ;
+        }else if(c===',' && !inQ){ row.push(cur); cur=''; }
+        else if((c==='
+'||c==='
+') && !inQ){ if(c==='
+' && text[i+1]==='
+') i++; row.push(cur); out.push(row); row=[]; cur=''; }
+        else cur+=c;
       }
-      if(cur.length > 0 || row.length){ row.push(cur); out.push(row); }
-      // buang baris kosong total
-      return out.filter(r => r.some(cell => (cell||'').trim().length));
+      if(cur.length>0 || row.length){ row.push(cur); out.push(row); }
+      return out.filter(r=> r.some(cell => (cell||'').trim().length));
     }
 
-    // Cache helpers
-    function readCache(){
-      try{ const v = JSON.parse(localStorage.getItem(CACHE_KEY)); return v || null; }catch{return null}
-    }
-    function writeCache(text, hash){
-      try{ localStorage.setItem(CACHE_KEY, JSON.stringify({ts:Date.now(), text, hash})); }catch{}
-    }
-    async function hashText(text){
-      if(window.crypto?.subtle){
-        try{
-          const data = new TextEncoder().encode(text);
-          const buf = await crypto.subtle.digest('SHA-1', data);
-          return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-        }catch{}
-      }
-      // fallback hash ringan
-      let h=0; for(let i=0;i<text.length;i++){ h=(h*31 + text.charCodeAt(i))|0; } return String(h);
-    }
-
-    async function getCSV(){
-      // Coba primary dulu, kalau gagal pakai fallback.
+    // GViz JSON → {header, rows}
+    function parseGVizJSON(txt){
       try{
-        const r = await fetch(CSV_URL, {mode:'cors', cache:'no-cache'});
-        if(!r.ok) throw new Error('HTTP '+r.status);
-        return await r.text();
-      }catch(e){
-        const r2 = await fetch(CSV_FALLBACK, {cache:'no-cache'});
-        if(!r2.ok) throw new Error('Fallback HTTP '+r2.status);
-        return await r2.text();
+        const json = JSON.parse(txt.slice(txt.indexOf('(')+1, txt.lastIndexOf(')')));
+        const cols = json.table.cols; const rs = json.table.rows;
+        const header = cols.map(c=>c.label||c.id||'');
+        const body = rs.map(r => (r.c||[]).map(c => c ? (c.f ?? c.v ?? '') : ''));
+        return {header, rows: body};
+      }catch{ return {header:[], rows:[]}; }
+    }
+
+    async function fetchWithTimeout(url, ms=12000){
+      const ctrl = new AbortController(); const id = setTimeout(()=>ctrl.abort(), ms);
+      try{ const r = await fetch(url, {mode:'cors', cache:'no-cache', signal: ctrl.signal}); if(!r.ok) throw new Error('HTTP '+r.status); return await r.text(); }
+      finally{ clearTimeout(id); }
+    }
+
+    async function getData(){
+      const order = [GVIZ_JSON, GVIZ_CSV, MIRROR(GVIZ_JSON), MIRROR(GVIZ_CSV)];
+      for(const url of order){
+        try{
+          const text = await fetchWithTimeout(url);
+          if(url.includes('out:json')){
+            const {header, rows} = parseGVizJSON(text);
+            if(rows.length) return {header, rows, source:url};
+          }else if(url.includes('out:csv')){
+            const arr = parseCSV(text);
+            if(arr.length>1) return {header:arr[0], rows:arr.slice(1), source:url};
+          }
+        }catch(e){ console.warn('[fallback]', url, e.message); }
       }
+      throw new Error('Tidak bisa mengambil data dari Google Sheets (JSON/CSV). Pastikan sharing: Anyone with link (Viewer).');
     }
 
     function updateParentOptions(){
       const areaVal = $area.value;
-      const parents = uniq(rows.filter(r=> !areaVal || r[COL.AREA] === areaVal).map(r=> r[COL.JOB_PARENT] || ''));
+      const parents = uniq(rows.filter(r => !areaVal || r[COL.AREA] === areaVal).map(r => r[COL.JOB_PARENT]||''));
       setOptions($parent, parents, 'Semua Job Parent');
     }
 
     function fillFilters(){
-      const areas = uniq(rows.map(r=> r[COL.AREA] || ''));
+      const areas = uniq(rows.map(r => r[COL.AREA]||''));
       setOptions($area, areas, 'Semua Area');
       updateParentOptions();
     }
 
     function templateCard(r){
-      const job = escapeHtml(r[COL.JOB_NAME]||'');
-      const parent = escapeHtml(r[COL.JOB_PARENT]||'');
-      const area = escapeHtml(r[COL.AREA]||'-');
-      const qual = escapeHtml(r[COL.QUAL]||'');
+      const job   = esc(r[COL.JOB_NAME]||'');
+      const par   = esc(r[COL.JOB_PARENT]||'');
+      const area  = esc(r[COL.AREA]||'-');
+      const qual  = esc(r[COL.QUAL]||'');
       return `
-        <article class="card" data-job="${job}" data-parent="${parent}" data-area="${area}" data-qual="${qual}">
+        <article class="card" data-job="${job}" data-parent="${par}" data-area="${area}" data-qual="${qual}">
           <div class="job-title">${job || '-'}</div>
-          <div class="job-parent">${parent || '-'}</div>
+          <div class="job-parent">${par || '-'}</div>
           <div class="loc">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z"/></svg>
             <span>${area}</span>
@@ -261,34 +263,27 @@
         </article>`;
     }
 
-    // Render bertahap (chunked) supaya UI tetap responsif untuk dataset besar
     function render(){
-      const selArea = $area.value;
+      const selArea   = $area.value;
       const selParent = $parent.value;
-      const filtered = rows.filter(r=>{
-        const okArea = selArea ? r[COL.AREA] === selArea : true;
-        const okPar = selParent ? r[COL.JOB_PARENT] === selParent : true;
-        return okArea && okPar;
+      const filtered = rows.filter(r => {
+        const okA = selArea ? r[COL.AREA] === selArea : true;
+        const okP = selParent ? r[COL.JOB_PARENT] === selParent : true;
+        return okA && okP;
       });
 
       if(!filtered.length){
-        $grid.hidden = true;
-        $status.hidden = false; $status.textContent = 'Tidak ada data yang cocok dengan filter.';
-        $status.setAttribute('aria-busy','false');
+        $grid.hidden = true; $status.hidden = false; $status.textContent = 'Tidak ada data yang cocok dengan filter.'; $status.setAttribute('aria-busy','false');
         return;
       }
 
       $status.hidden = true; $grid.hidden = false; $grid.innerHTML = '';
-
-      const CHUNK = 40; // bisa dinaikkan/diturunkan sesuai ukuran data
-      let i = 0;
+      const CHUNK = 48; let i=0;
       function step(){
         const slice = filtered.slice(i, i+CHUNK);
-        let html = '';
-        for(const r of slice) html += templateCard(r);
+        let html=''; for(const r of slice) html += templateCard(r);
         $grid.insertAdjacentHTML('beforeend', html);
-        i += CHUNK;
-        if(i < filtered.length){ requestAnimationFrame(step); }
+        i += CHUNK; if(i < filtered.length) requestAnimationFrame(step);
       }
       requestAnimationFrame(step);
     }
@@ -297,32 +292,20 @@
       $dJob.textContent = payload.job || '-';
       $dParent.textContent = payload.parent ? `Job Parent: ${payload.parent}` : '-';
       $dBranch.textContent = payload.area || '-';
-      $dQual.innerHTML = nl2br(escapeHtml(payload.qual || '-'));
-      $dApply.href = 'https://apply.career-simgroup.com';
-      if(typeof $dlg.showModal === 'function') $dlg.showModal(); else $dlg.setAttribute('open','');
-    }` : '-';
-      $dBranch.textContent = payload.area || '-';
-      $dQual.innerHTML = nl2br(escapeHtml(payload.qual || '-'));
-      $dApply.href = 'https://apply.career-simgroup.com';
-      if(typeof $dlg.showModal === 'function') $dlg.showModal(); else $dlg.setAttribute('open','');
-    }` : '-';
-      $dBranch.textContent = payload.branch || '-';
-      $dQual.innerHTML = nl2br(escapeHtml(payload.qual || '-'));
-      $dApply.href = 'https://apply.career-simgroup.com';
+      $dQual.innerHTML = nl2br(payload.qual || '-');
       if(typeof $dlg.showModal === 'function') $dlg.showModal(); else $dlg.setAttribute('open','');
     }
-
     function closeModal(){ if($dlg.open) $dlg.close(); else $dlg.removeAttribute('open'); }
 
-    // Listeners (delegasi supaya efisien)
-    document.addEventListener('click', (e)=>{
+    // Delegasi click
+    document.addEventListener('click', e => {
       const btn = e.target.closest('.show-more');
       if(btn){
         const card = btn.closest('.card');
         openModal({
           job: card.dataset.job,
-          area: card.dataset.area,
           parent: card.dataset.parent,
+          area: card.dataset.area,
           qual: card.dataset.qual,
         });
       }
@@ -334,88 +317,25 @@
     $btnClear.addEventListener('click', ()=>{ $area.value=''; updateParentOptions(); $parent.value=''; render(); });
     $area.addEventListener('change', ()=>{ updateParentOptions(); $parent.value=''; });
 
-    // === Network helpers (fallback berlapis + timeout) ===
-    async function fetchWithTimeout(url, {timeout=12000}={}){
-      const ctrl = new AbortController();
-      const id = setTimeout(()=>ctrl.abort(), timeout);
-      try{
-        const r = await fetch(url, {cache:'no-cache', mode:'cors', signal: ctrl.signal});
-        if(!r.ok) throw new Error('HTTP '+r.status);
-        return await r.text();
-      } finally { clearTimeout(id); }
-    }
-
-    function parseHTMLTable(html){
-      try{
-        const doc = new DOMParser().parseFromString(html, 'text/html');
-        const table = doc.querySelector('table.waffle');
-        if(!table) return [];
-        const rows = [];
-        for(const tr of table.querySelectorAll('tr')){
-          rows.push(Array.from(tr.children).map(td => (td.textContent||'').replace(/ /g,' ').trim()));
-        }
-        return rows;
-      }catch{ return []; }
-    }
-
-    async function tryMany(urls){
-      for(const url of urls){
-        try{ return await fetchWithTimeout(url); } catch(e){ console.warn('[src fail]', url, e.message); }
-      }
-      throw new Error('Semua sumber gagal.');
-    }
-
-    async function getData2(){
-      const urls = [CSV_URL, GVIZ_CSV, CSV_FALLBACK, GVIZ_FALLBACK, PUBHTML, PUBHTML_FALLBACK];
-      const text = await tryMany(urls);
-      if(text.startsWith('<!DOCTYPE') || text.startsWith('<html')){
-        return parseHTMLTable(text);
-      }
-      return parseCSV(text);
-    }
-
-    // ===== Init =====
+    // ====== Init ======
     (async function init(){
-      const t0 = performance.now();
       try{
-        // 1) Tampilkan cache jika ada (instant paint)
-        const cached = readCache();
-        if(cached){
-          const arrCached = parseCSV(cached.text);
-          if(arrCached.length > 1){
-            rows = arrCached.slice(1);
-            fillFilters();
-            render();
-            $status.hidden = true; $grid.hidden = false; $status.setAttribute('aria-busy','false');
+        // Cache dulu jika ada
+        const cache = localStorage.getItem(CACHE_KEY);
+        if(cache){
+          const cached = JSON.parse(cache);
+          if(Array.isArray(cached.rows) && cached.rows.length){
+            rows = cached.rows; fillFilters(); render();
           }
         }
-
-        // 2) Ambil data terbaru dari beberapa sumber (CSV/HTML)
-        const arr = await getData2();
-        if(!arr.length) throw new Error('Data kosong');
-        rows = arr.slice(1);
-        fillFilters();
-        render();
-
-        // 3) Simpan cache (sebagai CSV minimal)
-        try{
-          const text = [arr[0], ...rows].map(r=> r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('
-');
-          const hash = await hashText(text);
-          writeCache(text, hash);
-        }catch{}
-
+        // Ambil data fresh
+        const {rows: liveRows} = await getData();
+        rows = liveRows; fillFilters(); render();
+        localStorage.setItem(CACHE_KEY, JSON.stringify({rows}));
         $status.hidden = true; $grid.hidden = false; $status.setAttribute('aria-busy','false');
-        const t1 = performance.now();
-        console.info('[LOOKERIN] Loaded in', Math.round(t1 - t0), 'ms, rows:', rows.length);
       }catch(err){
-        console.error(err);
-        if(rows.length){
-          $status.hidden = false; $status.textContent = 'Gagal memuat pembaruan, menampilkan data tersimpan.';
-        }else{
-          $status.textContent = 'Gagal memuat data: ' + err.message;
-        }
-        $status.setAttribute('aria-busy','false');
+        console.error('[LOOKERIN] load fail', err);
+        if(!rows.length){ $status.textContent = 'Gagal memuat data: ' + err.message; $status.setAttribute('aria-busy','false'); }
       }
     })();
   })();
