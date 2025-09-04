@@ -134,6 +134,9 @@
     </div>
   </dialog>
 
+  <!-- Debug overlay kecil -->
+  <div id="dbg" style="position:fixed;left:8px;bottom:8px;background:#00000099;color:#fff;padding:6px 8px;border-radius:8px;font:12px/1.3 ui-monospace,Menlo,monospace;z-index:9999;max-width:80vw;display:none"></div>
+
   <script>
   ;(function(){
     // ====== CONFIG (Dokumen yang Anda minta) ======
@@ -141,8 +144,8 @@
     const SHEET  = 'Sheet1';
 
     // Endpoints yang stabil (urutan fallback)
-    const GVIZ_JSON = `https://docs.google.com/spreadsheets/d/${DOC_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET)}`;
-    const GVIZ_CSV  = `https://docs.google.com/spreadsheets/d/${DOC_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET)}`;
+    const GVIZ_JSON = `https://docs.google.com/spreadsheets/d/${DOC_ID}/gviz/tq?tqx=out:json`;
+    const GVIZ_CSV  = `https://docs.google.com/spreadsheets/d/${DOC_ID}/gviz/tq?tqx=out:csv`;
     const MIRROR = u => 'https://r.jina.ai/http://' + u.replace(/^https?:\/\//,'');
 
     // Index kolom sesuai permintaan: C=Area, D=Nama Job, E=Job Parent, F=Kualifikasi
@@ -219,11 +222,22 @@
 
     async function getData(){
       const order = [GVIZ_JSON, GVIZ_CSV, MIRROR(GVIZ_JSON), MIRROR(GVIZ_CSV)];
+      let lastErr = '';
       for(const url of order){
         try{
           const text = await fetchWithTimeout(url);
           if(url.includes('out:json')){
             const {header, rows} = parseGVizJSON(text);
+            if(rows.length) return {header, rows, source:url};
+          }else{ // csv
+            const arr = parseCSV(text);
+            if(arr.length>1) return {header:arr[0], rows:arr.slice(1), source:url};
+          }
+          lastErr = 'empty';
+        }catch(e){ lastErr = e.message; }
+      }
+      throw new Error('Semua sumber gagal ('+lastErr+').');
+    } = parseGVizJSON(text);
             if(rows.length) return {header, rows, source:url};
           }else if(url.includes('out:csv')){
             const arr = parseCSV(text);
@@ -333,9 +347,12 @@
         rows = liveRows; fillFilters(); render();
         localStorage.setItem(CACHE_KEY, JSON.stringify({rows}));
         $status.hidden = true; $grid.hidden = false; $status.setAttribute('aria-busy','false');
+        const dbg = document.getElementById('dbg'); if(dbg){ dbg.style.display='block'; dbg.textContent = `OK: ${rows.length} rows`; }
       }catch(err){
         console.error('[LOOKERIN] load fail', err);
+        const dbg = document.getElementById('dbg'); if(dbg){ dbg.style.display='block'; dbg.textContent = 'ERR: '+ err.message; }
         if(!rows.length){ $status.textContent = 'Gagal memuat data: ' + err.message; $status.setAttribute('aria-busy','false'); }
+      }
       }
     })();
   })();
