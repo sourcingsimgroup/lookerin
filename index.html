@@ -258,7 +258,25 @@
       const out=[]; let row=[]; let cur=''; let inQ=false;
       for(let i=0;i<text.length;i++){
         const c=text[i];
-        if(c==='"'){ if(inQ && text[i+1]==='"'){ cur+='"'; i++; } else inQ=!inQ; }
+        if(c==='"'){
+          if(inQ && text[i+1]==='"'){ cur+='"'; i++; }
+          else inQ=!inQ;
+        } else if(c===',' && !inQ){
+          row.push(cur); cur='';
+        } else if((c==='
+' || c==='
+') && !inQ){
+          if(c==='
+' && text[i+1]==='
+') i++;
+          row.push(cur); out.push(row); row=[]; cur='';
+        } else {
+          cur+=c;
+        }
+      }
+      if(cur.length>0 || row.length){ row.push(cur); out.push(row); }
+      return out.filter(r=> r.some(cell => (cell||'').trim().length));
+    } else inQ=!inQ; }
         else if(c===',' && !inQ){ row.push(cur); cur=''; }
         else if((c==='
 ' || c==='
