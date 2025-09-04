@@ -141,6 +141,9 @@
     const CSV_URL = PUBHTML.replace("/pubhtml", "/pub?output=csv");
     // Fallback proxy (read-only mirror) — tetap HTTPS agar aman
     const CSV_FALLBACK = "https://r.jina.ai/http://" + CSV_URL.replace(/^https?:\/\//, "");
+    // Google Visualization CSV endpoint (sering lebih stabil)
+    const GVIZ_CSV = PUBHTML.replace('/pubhtml','/gviz/tq?tqx=out:csv');
+    const GVIZ_FALLBACK = "https://r.jina.ai/http://" + GVIZ_CSV.replace(/^https?:\/\//, "");
 
     // Column indexes (0-based)
     const COL = { AREA:2, JOB_NAME:3, JOB_PARENT:4, QUAL:5 };
@@ -331,6 +334,46 @@
     $btnClear.addEventListener('click', ()=>{ $area.value=''; updateParentOptions(); $parent.value=''; render(); });
     $area.addEventListener('change', ()=>{ updateParentOptions(); $parent.value=''; });
 
+    // === Network helpers (fallback berlapis + timeout) ===
+    async function fetchWithTimeout(url, {timeout=12000}={}){
+      const ctrl = new AbortController();
+      const id = setTimeout(()=>ctrl.abort(), timeout);
+      try{
+        const r = await fetch(url, {cache:'no-cache', mode:'cors', signal: ctrl.signal});
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        return await r.text();
+      } finally { clearTimeout(id); }
+    }
+
+    function parseHTMLTable(html){
+      try{
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const table = doc.querySelector('table.waffle');
+        if(!table) return [];
+        const rows = [];
+        for(const tr of table.querySelectorAll('tr')){
+          rows.push(Array.from(tr.children).map(td => (td.textContent||'').replace(/ /g,' ').trim()));
+        }
+        return rows;
+      }catch{ return []; }
+    }
+
+    async function tryMany(urls){
+      for(const url of urls){
+        try{ return await fetchWithTimeout(url); } catch(e){ console.warn('[src fail]', url, e.message); }
+      }
+      throw new Error('Semua sumber gagal.');
+    }
+
+    async function getData2(){
+      const urls = [CSV_URL, GVIZ_CSV, CSV_FALLBACK, GVIZ_FALLBACK, PUBHTML, PUBHTML_FALLBACK];
+      const text = await tryMany(urls);
+      if(text.startsWith('<!DOCTYPE') || text.startsWith('<html')){
+        return parseHTMLTable(text);
+      }
+      return parseCSV(text);
+    }
+
     // ===== Init =====
     (async function init(){
       const t0 = performance.now();
@@ -348,7 +391,7 @@
         }
 
         // 2) Ambil data terbaru dari beberapa sumber (CSV/HTML)
-        const arr = await getRows();
+        const arr = await getData2();
         if(!arr.length) throw new Error('Data kosong');
         rows = arr.slice(1);
         fillFilters();
