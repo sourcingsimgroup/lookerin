@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LOOKERIN • Mini Job Portal</title>
+  <meta name="description" content="LOOKERIN – by SIMGROUP. Mini job portal dengan filter Area & Job Parent (dependent), tampilan mobile & web, kartu kapsul, popup detail + Apply. Versi ini fokus pada: load data sempurna (CSV robust), cepat (cache + chunked render), dan fallback andal."/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --brand:#1BAFBF;           /* turquoise */
+      --brand-ink:#0d5c66;       /* darker turquoise */
+      --ink:#0f172a;             /* slate-900 */
+      --muted:#f1f5f9;           /* slate-100 */
+      --line:#e2e8f0;            /* slate-200 */
+      --bg:#ffffff;
+      --card:#ffffff;
+      --shadow:0 6px 20px rgba(0,0,0,.06);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:Montserrat,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; color:var(--ink); background:var(--bg)}
+    .wrap{max-width:1100px;margin:0 auto;padding:20px 16px 80px}
+
+    /* Header */
+    header{position:sticky;top:0;z-index:20;background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(255,255,255,.92));backdrop-filter:saturate(140%) blur(6px);border-bottom:1px solid var(--line)}
+    .head-inner{max-width:1100px;margin:0 auto;padding:14px 16px;display:flex;align-items:center;gap:14px}
+    .logo{width:42px;height:42px;border-radius:12px;background:conic-gradient(from 120deg,#76e4ef,#22d3ee,#0ea5b8,#0891b2,#76e4ef);display:grid;place-items:center;box-shadow:var(--shadow)}
+    .logo::before{content:"";width:18px;height:18px;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 3px rgba(255,255,255,.35)}
+    .title{display:flex;flex-direction:column}
+    .title h1{font-size:22px;line-height:1.1;margin:0;letter-spacing:.6px;font-weight:800;color:var(--brand-ink)}
+    .title p{margin:2px 0 0;font-size:12px;color:#475569;font-weight:600}
+
+    /* Filter Bar */
+    .filters{margin:18px 0 10px;background:var(--muted);border:1px solid var(--line);padding:12px;border-radius:16px;box-shadow:var(--shadow)}
+    .filters .row{display:flex;flex-wrap:wrap;gap:10px}
+    .fgrp{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);padding:8px 10px;border-radius:12px}
+    .fgrp label{font-size:12px;color:#334155;font-weight:700}
+    .fgrp select{appearance:auto;border:none;outline:none;font-size:13px;padding:6px 8px;background:#fff;color:#0f172a;min-width:220px}
+    .f-actions{margin-left:auto;display:flex;gap:8px}
+    .btn{border:none;outline:none;border-radius:999px;padding:10px 14px;font-weight:700;letter-spacing:.2px;cursor:pointer}
+    .btn-primary{background:var(--brand);color:#00323a}
+    .btn-ghost{background:#fff;color:#0f172a;border:1px solid var(--line)}
+
+    /* Grid */
+    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+    @media (max-width:960px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:640px){.grid{grid-template-columns:1fr}.fgrp select{min-width:160px}}
+
+    .card{position:relative;border:1px solid var(--line);background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 14px;transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease}
+    .card:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.08);border-color:#bae6fd}
+    .label{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#0c4a6e;background:#e0f2fe;padding:3px 8px;border-radius:999px;font-weight:800;letter-spacing:.2px}
+    .job-title{margin:2px 0 4px;font-size:12px;font-weight:800;color:#083344}
+    .job-parent{font-size:9px;font-weight:400;color:#0b4c57;margin:2px 0 8px}
+    .loc{display:flex;align-items:center;gap:8px;font-size:12px;color:#0b3d44}
+    .loc svg{width:16px;height:16px;flex:0 0 auto}
+    .show-more{margin-top:12px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer}
+
+    /* Empty / status */
+    .status{padding:24px;text-align:center;color:#334155}
+
+    /* Modal */
+    dialog{width:min(700px, 94vw);border:none;border-radius:20px;padding:0;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+    .modal{padding:18px 18px 16px}
+    .modal header{position:relative;border-bottom:none;backdrop-filter:none;background:#fff}
+    .modal .title h2{font-size:20px;color:#062e33;margin:0}
+    .modal .sub{margin:6px 0 10px;font-size:13px;color:#0b4c57;font-weight:700}
+    .modal .meta{display:flex;align-items:center;gap:8px;color:#083344;font-size:13px}
+    .modal .meta svg{width:18px;height:18px}
+    .modal .qual{margin-top:14px;font-size:14px;line-height:1.5;color:#0f172a;background:var(--muted);padding:14px;border-radius:12px;border:1px solid var(--line);max-height:min(46vh,420px);overflow:auto}
+    .modal .actions{margin-top:16px;display:flex;gap:10px;justify-content:flex-end}
+    .x{position:absolute;top:8px;right:10px;border:none;background:transparent;font-size:22px;line-height:1;cursor:pointer;color:#0f172a}
+    .apply-btn{display:inline-flex;align-items:center;gap:8px}
+
+    /* Kurangi animasi jika user memilih reduced motion */
+    @media (prefers-reduced-motion: no-preference){
+      @keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.03)}100%{transform:scale(1)}}
+      .logo{animation:pulse 3s ease-in-out infinite}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="head-inner">
+      <div class="logo" aria-hidden="true"></div>
+      <div class="title">
+        <h1>LOOKERIN</h1>
+        <p>by SIMGROUP</p>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <!-- Filters -->
+    <section class="filters" aria-label="Filter Loker">
+      <div class="row">
+        <div class="fgrp">
+          <label for="f-area">Area</label>
+          <select id="f-area" title="Pilih Area (Kolom C)"></select>
+        </div>
+        <div class="fgrp">
+          <label for="f-parent">Job Parent</label>
+          <select id="f-parent" title="Pilih Job Parent (Kolom E)"></select>
+        </div>
+        <div class="f-actions">
+          <button class="btn btn-ghost" id="btn-clear" type="button">Clear</button>
+          <button class="btn btn-primary" id="btn-apply" type="button">Terapkan</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Grid / Results -->
+    <div id="status" class="status" role="status" aria-live="polite" aria-busy="true">Mengambil data…</div>
+    <section id="grid" class="grid" hidden></section>
+  </div>
+
+  <!-- Modal -->
+  <dialog id="dlg">
+    <div class="modal">
+      <button class="x" id="dlg-x" aria-label="Tutup">×</button>
+      <div class="title"><h2 id="dlg-job">-</h2></div>
+      <div class="sub" id="dlg-parent">-</div>
+      <div class="meta"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z"/></svg><span id="dlg-branch">-</span></div>
+      <div class="qual" id="dlg-qual">-</div>
+      <div class="actions">
+        <a class="btn btn-primary apply-btn" id="dlg-apply" href="https://apply.career-simgroup.com" target="_blank" rel="noopener" title="Apply di apply.career-simgroup.com">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M5 12h9M12 5l7 7-7 7"/></svg>
+          Apply
+        </a>
+        <button class="btn btn-ghost" id="dlg-close" type="button">Tutup</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script>
+  ;(function(){
+    // === CONFIG ===
+    const PUBHTML = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT94XcY1sHC-fxbxQBPsYENwhqsGqlEISuVvZocCuu-r2qG_EIWBHtXPibeiGjrV3S_GuKm-tmQlzGP/pubhtml";
+    const CSV_URL = PUBHTML.replace("/pubhtml", "/pub?output=csv");
+    // Fallback proxy (read-only mirror) — tetap HTTPS agar aman
+    const CSV_FALLBACK = "https://r.jina.ai/http://" + CSV_URL.replace(/^https?:\/\//, "");
+
+    // Column indexes (0-based)
+    const COL = { AREA:2, JOB_NAME:3, JOB_PARENT:4, QUAL:5 };
+
+    // Cache (stale-while-revalidate)
+    const CACHE_KEY = "lookerin_csv_cache_v1";
+    const CACHE_MAX_AGE = 10 * 60 * 1000; // 10 menit
+
+    // Elements
+    const $grid = document.getElementById('grid');
+    const $status = document.getElementById('status');
+    const $area = document.getElementById('f-area');
+    const $parent = document.getElementById('f-parent');
+    const $btnApply = document.getElementById('btn-apply');
+    const $btnClear = document.getElementById('btn-clear');
+
+    const $dlg = document.getElementById('dlg');
+    const $dlgX = document.getElementById('dlg-x');
+    const $dlgClose = document.getElementById('dlg-close');
+    const $dJob = document.getElementById('dlg-job');
+    const $dBranch = document.getElementById('dlg-branch');
+    const $dParent = document.getElementById('dlg-parent');
+    const $dQual = document.getElementById('dlg-qual');
+    const $dApply = document.getElementById('dlg-apply');
+
+    let rows = []; // data rows tanpa header
+
+    // ===== Util =====
+    const collator = new Intl.Collator('id');
+    function uniq(arr){ return [...new Set(arr.filter(Boolean))].sort((a,b)=>collator.compare(a,b)); }
+    function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+    function nl2br(htmlEscaped){ return htmlEscaped.replace(/\r?\n/g,'<br>'); }
+
+    function setOptions(el, list, placeholder){
+      el.innerHTML = `<option value="">${placeholder}</option>` + list.map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+    }
+
+    // CSV parser ROBUST: mendukung newline di dalam tanda kutip
+    function parseCSV(text){
+      const out = []; let row = []; let cur = ''; let inQ = false;
+      for(let i=0;i<text.length;i++){
+        const c = text[i];
+        if(c === '"'){
+          if(inQ && text[i+1] === '"'){ cur += '"'; i++; }
+          else { inQ = !inQ; }
+        } else if(c === ',' && !inQ){ row.push(cur); cur = ''; }
+        else if((c === '\n' || c === '\r') && !inQ){
+          if(c === '\r' && text[i+1] === '\n') i++; // CRLF
+          row.push(cur); out.push(row); row = []; cur = '';
+        } else { cur += c; }
+      }
+      if(cur.length > 0 || row.length){ row.push(cur); out.push(row); }
+      // buang baris kosong total
+      return out.filter(r => r.some(cell => (cell||'').trim().length));
+    }
+
+    // Cache helpers
+    function readCache(){
+      try{ const v = JSON.parse(localStorage.getItem(CACHE_KEY)); return v || null; }catch{return null}
+    }
+    function writeCache(text, hash){
+      try{ localStorage.setItem(CACHE_KEY, JSON.stringify({ts:Date.now(), text, hash})); }catch{}
+    }
+    async function hashText(text){
+      if(window.crypto?.subtle){
+        try{
+          const data = new TextEncoder().encode(text);
+          const buf = await crypto.subtle.digest('SHA-1', data);
+          return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+        }catch{}
+      }
+      // fallback hash ringan
+      let h=0; for(let i=0;i<text.length;i++){ h=(h*31 + text.charCodeAt(i))|0; } return String(h);
+    }
+
+    async function getCSV(){
+      // Coba primary dulu, kalau gagal pakai fallback.
+      try{
+        const r = await fetch(CSV_URL, {mode:'cors', cache:'no-cache'});
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        return await r.text();
+      }catch(e){
+        const r2 = await fetch(CSV_FALLBACK, {cache:'no-cache'});
+        if(!r2.ok) throw new Error('Fallback HTTP '+r2.status);
+        return await r2.text();
+      }
+    }
+
+    function updateParentOptions(){
+      const areaVal = $area.value;
+      const parents = uniq(rows.filter(r=> !areaVal || r[COL.AREA] === areaVal).map(r=> r[COL.JOB_PARENT] || ''));
+      setOptions($parent, parents, 'Semua Job Parent');
+    }
+
+    function fillFilters(){
+      const areas = uniq(rows.map(r=> r[COL.AREA] || ''));
+      setOptions($area, areas, 'Semua Area');
+      updateParentOptions();
+    }
+
+    function templateCard(r){
+      const job = escapeHtml(r[COL.JOB_NAME]||'');
+      const parent = escapeHtml(r[COL.JOB_PARENT]||'');
+      const area = escapeHtml(r[COL.AREA]||'-');
+      const qual = escapeHtml(r[COL.QUAL]||'');
+      return `
+        <article class="card" data-job="${job}" data-parent="${parent}" data-area="${area}" data-qual="${qual}">
+          <div class="job-title">${job || '-'}</div>
+          <div class="job-parent">${parent || '-'}</div>
+          <div class="loc">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z"/></svg>
+            <span>${area}</span>
+          </div>
+          <button class="show-more" type="button">Detail</button>
+        </article>`;
+    }
+
+    // Render bertahap (chunked) supaya UI tetap responsif untuk dataset besar
+    function render(){
+      const selArea = $area.value;
+      const selParent = $parent.value;
+      const filtered = rows.filter(r=>{
+        const okArea = selArea ? r[COL.AREA] === selArea : true;
+        const okPar = selParent ? r[COL.JOB_PARENT] === selParent : true;
+        return okArea && okPar;
+      });
+
+      if(!filtered.length){
+        $grid.hidden = true;
+        $status.hidden = false; $status.textContent = 'Tidak ada data yang cocok dengan filter.';
+        $status.setAttribute('aria-busy','false');
+        return;
+      }
+
+      $status.hidden = true; $grid.hidden = false; $grid.innerHTML = '';
+
+      const CHUNK = 40; // bisa dinaikkan/diturunkan sesuai ukuran data
+      let i = 0;
+      function step(){
+        const slice = filtered.slice(i, i+CHUNK);
+        let html = '';
+        for(const r of slice) html += templateCard(r);
+        $grid.insertAdjacentHTML('beforeend', html);
+        i += CHUNK;
+        if(i < filtered.length){ requestAnimationFrame(step); }
+      }
+      requestAnimationFrame(step);
+    }
+
+    function openModal(payload){
+      $dJob.textContent = payload.job || '-';
+      $dParent.textContent = payload.parent ? `Job Parent: ${payload.parent}` : '-';
+      $dBranch.textContent = payload.area || '-';
+      $dQual.innerHTML = nl2br(escapeHtml(payload.qual || '-'));
+      $dApply.href = 'https://apply.career-simgroup.com';
+      if(typeof $dlg.showModal === 'function') $dlg.showModal(); else $dlg.setAttribute('open','');
+    }` : '-';
+      $dBranch.textContent = payload.area || '-';
+      $dQual.innerHTML = nl2br(escapeHtml(payload.qual || '-'));
+      $dApply.href = 'https://apply.career-simgroup.com';
+      if(typeof $dlg.showModal === 'function') $dlg.showModal(); else $dlg.setAttribute('open','');
+    }` : '-';
+      $dBranch.textContent = payload.branch || '-';
+      $dQual.innerHTML = nl2br(escapeHtml(payload.qual || '-'));
+      $dApply.href = 'https://apply.career-simgroup.com';
+      if(typeof $dlg.showModal === 'function') $dlg.showModal(); else $dlg.setAttribute('open','');
+    }
+
+    function closeModal(){ if($dlg.open) $dlg.close(); else $dlg.removeAttribute('open'); }
+
+    // Listeners (delegasi supaya efisien)
+    document.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.show-more');
+      if(btn){
+        const card = btn.closest('.card');
+        openModal({
+          job: card.dataset.job,
+          area: card.dataset.area,
+          parent: card.dataset.parent,
+          qual: card.dataset.qual,
+        });
+      }
+    });
+    $dlgX.addEventListener('click', closeModal);
+    $dlgClose.addEventListener('click', closeModal);
+
+    $btnApply.addEventListener('click', render);
+    $btnClear.addEventListener('click', ()=>{ $area.value=''; updateParentOptions(); $parent.value=''; render(); });
+    $area.addEventListener('change', ()=>{ updateParentOptions(); $parent.value=''; });
+
+    // ===== Init =====
+    (async function init(){
+      const t0 = performance.now();
+      try{
+        // 1) Tampilkan cache bila ada => instan
+        const cached = readCache();
+        if(cached){
+          const arrCached = parseCSV(cached.text);
+          rows = arrCached.slice(1);
+          fillFilters();
+          render();
+          $status.hidden = true; $grid.hidden = false; $status.setAttribute('aria-busy','false');
+          // lanjut revalidate di background
+        }
+
+        // 2) Ambil data terbaru
+        const csvText = await getCSV();
+        const [hashNew, hashOld] = await Promise.all([hashText(csvText), Promise.resolve(cached?.hash || null)]);
+        if(!cached || hashNew !== hashOld || (Date.now() - (cached.ts||0)) > CACHE_MAX_AGE){
+          const arr = parseCSV(csvText);
+          if(!arr.length) throw new Error('CSV kosong');
+          rows = arr.slice(1);
+          fillFilters();
+          render();
+          writeCache(csvText, hashNew);
+        }
+
+        // Jika belum ada cache sama sekali, pastikan status disembunyikan setelah render
+        if(!cached){ $status.hidden = true; $grid.hidden = false; $status.setAttribute('aria-busy','false'); }
+
+        const t1 = performance.now();
+        console.info('[LOOKERIN] Loaded in', Math.round(t1 - t0), 'ms, rows:', rows.length);
+      }catch(err){
+        console.error(err);
+        if(rows.length){
+          // bila sudah tampil dari cache, info ringan saja
+          $status.hidden = false; $status.textContent = 'Gagal memuat pembaruan, menampilkan data tersimpan.';
+          $status.setAttribute('aria-busy','false');
+        }else{
+          $status.textContent = 'Gagal memuat data: ' + err.message;
+          $status.setAttribute('aria-busy','false');
+        }
+      }
+    })();
+  })();
+  </script>
+</body>
+</html>
