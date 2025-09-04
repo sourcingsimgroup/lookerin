@@ -335,44 +335,44 @@
     (async function init(){
       const t0 = performance.now();
       try{
-        // 1) Tampilkan cache bila ada => instan
+        // 1) Tampilkan cache jika ada (instant paint)
         const cached = readCache();
         if(cached){
           const arrCached = parseCSV(cached.text);
-          rows = arrCached.slice(1);
-          fillFilters();
-          render();
-          $status.hidden = true; $grid.hidden = false; $status.setAttribute('aria-busy','false');
-          // lanjut revalidate di background
+          if(arrCached.length > 1){
+            rows = arrCached.slice(1);
+            fillFilters();
+            render();
+            $status.hidden = true; $grid.hidden = false; $status.setAttribute('aria-busy','false');
+          }
         }
 
-        // 2) Ambil data terbaru
-        const csvText = await getCSV();
-        const [hashNew, hashOld] = await Promise.all([hashText(csvText), Promise.resolve(cached?.hash || null)]);
-        if(!cached || hashNew !== hashOld || (Date.now() - (cached.ts||0)) > CACHE_MAX_AGE){
-          const arr = parseCSV(csvText);
-          if(!arr.length) throw new Error('CSV kosong');
-          rows = arr.slice(1);
-          fillFilters();
-          render();
-          writeCache(csvText, hashNew);
-        }
+        // 2) Ambil data terbaru dari beberapa sumber (CSV/HTML)
+        const arr = await getRows();
+        if(!arr.length) throw new Error('Data kosong');
+        rows = arr.slice(1);
+        fillFilters();
+        render();
 
-        // Jika belum ada cache sama sekali, pastikan status disembunyikan setelah render
-        if(!cached){ $status.hidden = true; $grid.hidden = false; $status.setAttribute('aria-busy','false'); }
+        // 3) Simpan cache (sebagai CSV minimal)
+        try{
+          const text = [arr[0], ...rows].map(r=> r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('
+');
+          const hash = await hashText(text);
+          writeCache(text, hash);
+        }catch{}
 
+        $status.hidden = true; $grid.hidden = false; $status.setAttribute('aria-busy','false');
         const t1 = performance.now();
         console.info('[LOOKERIN] Loaded in', Math.round(t1 - t0), 'ms, rows:', rows.length);
       }catch(err){
         console.error(err);
         if(rows.length){
-          // bila sudah tampil dari cache, info ringan saja
           $status.hidden = false; $status.textContent = 'Gagal memuat pembaruan, menampilkan data tersimpan.';
-          $status.setAttribute('aria-busy','false');
         }else{
           $status.textContent = 'Gagal memuat data: ' + err.message;
-          $status.setAttribute('aria-busy','false');
         }
+        $status.setAttribute('aria-busy','false');
       }
     })();
   })();
