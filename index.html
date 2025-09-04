@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>LOOKERIN • Mini Job Portal</title>
-  <meta name="description" content="LOOKERIN – by SIMGROUP. Mini job portal dengan filter Area & Job Parent (dependent), tampilan mobile & web, kartu kapsul, popup detail + Apply. Versi ini fokus pada: load data sempurna (CSV/JSON robust), cepat (cache + pager), dan fallback andal."/>
+  <meta name="description" content="LOOKERIN – by SIMGROUP. Mini job portal dengan filter Area & Group Job (dependent), tampilan mobile & web, kartu kapsul, popup detail + Apply. Versi ini fokus pada: load data sempurna (CSV/JSON robust), cepat (cache + pager), dan fallback andal."/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
   <style>
@@ -22,7 +22,20 @@
     }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{margin:0;font-family:Montserrat,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; color:var(--ink); background:var(--bg)}
+    body{
+      margin:0;font-family:Montserrat,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; color:var(--ink);
+      /* ABSTRAK GREY 50% OPACITY */
+      background:
+        var(--bg),
+        radial-gradient(1200px 800px at 12% 18%, rgba(148,163,184,.5), transparent 60%),
+        radial-gradient(1400px 900px at 88% 8%, rgba(100,116,139,.5), transparent 62%),
+        radial-gradient(900px 1100px at 46% 94%, rgba(71,85,105,.5), transparent 60%),
+        conic-gradient(from 180deg at 60% 40%, rgba(100,116,139,.16) 0deg, rgba(100,116,139,0) 120deg, rgba(100,116,139,.16) 240deg, rgba(100,116,139,0) 360deg);
+      background-attachment: fixed,fixed,fixed,fixed,fixed;
+      background-repeat:no-repeat;
+      background-size: auto, cover, cover, cover, cover;
+      background-position: center, center, center, center, center;
+    }
     .wrap{max-width:1100px;margin:0 auto;padding:20px 16px 80px}
 
     /* Header */
@@ -42,10 +55,55 @@
     .fgrp{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);padding:8px 10px;border-radius:12px}
     .fgrp label{font-size:12px;color:#334155;font-weight:700}
     .fgrp select{appearance:auto;border:none;outline:none;font-size:13px;padding:6px 8px;background:#fff;color:#0f172a;min-width:220px}
+
+    /* === GLOSSY untuk Area only (desktop + mobile) === */
+    /* gunakan :has agar kapsul Area terlihat glossy; fallback: styling langsung select */
+    .fgrp:has(#f-area),
+    .fgrp:has(#mf-area){
+      background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(248,250,252,.90)) padding-box,
+                  linear-gradient(180deg, #e2e8f0, #cbd5e1) border-box;
+      border:1px solid transparent;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.85), inset 0 -6px 12px rgba(255,255,255,.45), var(--shadow);
+      position:relative;
+    }
+    .fgrp:has(#f-area)::after,
+    .fgrp:has(#mf-area)::after{
+      content:""; position:absolute; left:6px; right:6px; top:4px; height:40%; border-radius:10px;
+      background: linear-gradient(180deg, rgba(255,255,255,.85), rgba(255,255,255,0)); pointer-events:none;
+    }
+    /* Fallback bila :has tidak didukung */
+    #f-area, #mf-area{
+      background: linear-gradient(180deg, rgba(255,255,255,.99), rgba(248,250,252,.92));
+      border:1px solid #cbd5e1; border-radius:10px; box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+      padding:6px 10px;
+    }
+
     .f-actions{margin-left:auto;display:flex;gap:8px}
     .btn{border:none;outline:none;border-radius:999px;padding:10px 14px;font-weight:700;letter-spacing:.2px;cursor:pointer}
     .btn-primary{background:var(--brand);color:#00323a}
     .btn-ghost{background:#fff;color:#0f172a;border:1px solid var(--line)}
+
+    /* === 3D + GLOSSY untuk tombol Clear & Terapkan (desktop + mobile) === */
+    #btn-clear, #mf-clear{
+      background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+      border:1px solid #cbd5e1;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 8px 0 rgba(15,23,42,.08), 0 10px 24px rgba(2,6,23,.08);
+      text-shadow: 0 1px 0 rgba(255,255,255,.7);
+      transition: transform .06s ease, box-shadow .12s ease, filter .2s ease;
+    }
+    #btn-clear:hover, #mf-clear:hover{ filter:brightness(1.03); }
+    #btn-clear:active, #mf-clear:active{ transform:translateY(2px); box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 5px 0 rgba(15,23,42,.10), 0 6px 16px rgba(2,6,23,.10);}    
+
+    #btn-apply, #mf-apply{
+      background: linear-gradient(180deg, #2ad4d4 0%, #16a0a8 70%);
+      border:1px solid #0e6771;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.65), 0 8px 0 rgba(13,92,102,.18), 0 10px 24px rgba(2,6,23,.10);
+      color:#00323a;
+      text-shadow: 0 1px 0 rgba(255,255,255,.35);
+      transition: transform .06s ease, box-shadow .12s ease, filter .2s ease;
+    }
+    #btn-apply:hover, #mf-apply:hover{ filter:brightness(1.06); }
+    #btn-apply:active, #mf-apply:active{ transform:translateY(2px); box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 5px 0 rgba(13,92,102,.22), 0 6px 16px rgba(2,6,23,.12);}  
 
     /* Grid */
     .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;min-height:40vh}
@@ -134,8 +192,8 @@
           <select id="f-area" title="Pilih Area (Kolom C)"></select>
         </div>
         <div class="fgrp">
-          <label for="f-parent">Job Parent</label>
-          <select id="f-parent" title="Pilih Job Parent (Kolom E)"></select>
+          <label for="f-parent">Group Job</label>
+          <select id="f-parent" title="Pilih Group Job (Kolom E)"></select>
         </div>
         <div class="f-actions">
           <button class="btn btn-ghost" id="btn-clear" type="button">Clear</button>
@@ -192,7 +250,7 @@
           <select id="mf-area"></select>
         </div>
         <div class="fgrp">
-          <label for="mf-parent">Job Parent</label>
+          <label for="mf-parent">Group Job</label>
           <select id="mf-parent"></select>
         </div>
       </div>
@@ -219,7 +277,7 @@
     const EXPORT_CSV = `https://docs.google.com/spreadsheets/d/${DOC_ID}/export?format=csv&sheet=${encodeURIComponent(SHEET)}`; // beberapa dokumen mendukung by-name
     const MIRROR = u => 'https://r.jina.ai/https/' + u.replace(/^https?:\/\//,'');
 
-    // Kolom: C=Area, D=Nama Job, E=Job Parent, F=Kualifikasi, G=Salary
+    // Kolom: C=Area, D=Nama Job, E=Group Job (dulu Job Parent), F=Kualifikasi, G=Salary
     const COL = { AREA:2, JOB_NAME:3, JOB_PARENT:4, QUAL:5, SALARY:6 };
 
     const CACHE_KEY = 'lookerin_cache_v8';
@@ -274,7 +332,7 @@
 
     function looksLikeHeader(r0){
       const base = (r0||[]).map(x=>String(x||'').toLowerCase());
-      const keys = ['area','nama job','job parent','kualifikasi','salary','gaji'];
+      const keys = ['area','nama job','job parent','group job','kualifikasi','salary','gaji'];
       return keys.some(k => base.includes(k));
     }
 
@@ -347,13 +405,13 @@
     function updateParentOptions(){
       const areaVal = $area.value; const key = toKey(areaVal);
       const parents = uniqNorm(rows.filter(r => !areaVal || toKey(r[COL.AREA]) === key).map(r => r[COL.JOB_PARENT]||''));
-      setOptions($parent, parents, 'Semua Job Parent');
+      setOptions($parent, parents, 'Semua Group Job');
     }
 
     function updateMobileParentOptions(){
       const areaVal = $mfArea.value || $area.value; const key = toKey(areaVal);
       const parents = uniqNorm(rows.filter(r => !areaVal || toKey(r[COL.AREA]) === key).map(r => r[COL.JOB_PARENT]||''));
-      setOptions($mfParent, parents, 'Semua Job Parent');
+      setOptions($mfParent, parents, 'Semua Group Job');
     }
 
     function fillFilters(){
@@ -365,7 +423,7 @@
       updateMobileParentOptions();
     }
 
-    // ====== ICONS by Job Parent ======
+    // ====== ICONS by Group Job (dulu Job Parent) ======
     const I = {
       briefcase: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9 4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2h3a2 2 0 0 1 2 2v9a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V8a2 2 0 0 1 2-2h3V4Zm2 0v2h2V4h-2Z"/></svg>',
       clipboard: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 3h8a2 2 0 0 1 2 2v1h-3.5a2.5 2.5 0 0 0-5 0H6V5a2 2 0 0 1 2-2Zm-2 5h12v11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V8Z"/></svg>',
@@ -488,10 +546,8 @@
     }
 
     function calcPageSize(){
-      const w = window.innerWidth;
-      if(w >= 960) return 30;     // desktop
-      if(w >= 640) return 20;     // tablet
-      return 10;                  // mobile list
+      // Permintaan: 12 kapsul per halaman untuk semua ukuran layar
+      return 12;
     }
 
     function adjustMinHeight(){
@@ -505,7 +561,7 @@
 
     function openModal({job,parent,area,qual,sal}){
       $dJob.textContent = job || '-';
-      $dParent.textContent = parent ? `Job Parent: ${parent}` : '-';
+      $dParent.textContent = parent ? `Group Job: ${parent}` : '-';
       $dArea.textContent = area || '-';
       $dSalary.textContent = sal || '-';
       $dQual.innerHTML = nl2br(qual || '-');
