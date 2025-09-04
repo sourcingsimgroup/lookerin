@@ -144,8 +144,8 @@
     const SHEET  = 'Sheet1';
 
     // Endpoints yang stabil (urutan fallback)
-    const GVIZ_JSON = `https://docs.google.com/spreadsheets/d/${DOC_ID}/gviz/tq?tqx=out:json`;
-    const GVIZ_CSV  = `https://docs.google.com/spreadsheets/d/${DOC_ID}/gviz/tq?tqx=out:csv`;
+    const GVIZ_JSON = `https://docs.google.com/spreadsheets/d/${DOC_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET)}`;
+    const GVIZ_CSV  = `https://docs.google.com/spreadsheets/d/${DOC_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET)}`;
     const MIRROR = u => 'https://r.jina.ai/http://' + u.replace(/^https?:\/\//,'');
 
     // Index kolom sesuai permintaan: C=Area, D=Nama Job, E=Job Parent, F=Kualifikasi
