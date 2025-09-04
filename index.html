@@ -147,13 +147,14 @@
     // Endpoints yang stabil (urutan fallback)
     const GVIZ_JSON = `https://docs.google.com/spreadsheets/d/${DOC_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET)}`;
     const GVIZ_CSV  = `https://docs.google.com/spreadsheets/d/${DOC_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET)}`;
-    const MIRROR = u => 'https://r.jina.ai/http://' + u.replace(/^https?:\/\//,'');
+    const MIRROR_HTTPS = u => 'https://r.jina.ai/https://' + u.replace(/^https?:\/\//,'');
+    const MIRROR_HTTP  = u => 'https://r.jina.ai/http://'  + u.replace(/^https?:\/\//,'');
 
     // Index kolom sesuai permintaan: C=Area, D=Nama Job, E=Job Parent, F=Kualifikasi
     const COL = { AREA:2, JOB_NAME:3, JOB_PARENT:4, QUAL:5 };
 
     // Cache ringan
-    const CACHE_KEY = 'lookerin_cache_v3';
+    const CACHE_KEY = 'lookerin_cache_v4';
 
     // ====== Elemen ======
     const $grid = document.getElementById('grid');
@@ -164,8 +165,6 @@
     const $btnClear = document.getElementById('btn-clear');
 
     const $dlg = document.getElementById('dlg');
-    const $dlgX = document.getElementById('dlg-x');
-    const $dlgClose = document.getElementById('dlg-close');
     const $dJob = document.getElementById('dlg-job');
     const $dArea = document.getElementById('dlg-area');
     const $dParent = document.getElementById('dlg-parent');
@@ -175,12 +174,8 @@
 
     // ====== Util ======
     const collator = new Intl.Collator('id');
-    const uniq = arr => [...new Set(arr.filter(Boolean))].sort((a,b)=>collator.compare(a,b));
     const esc = s => String(s==null? '': s).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
-    const nl2br = s => String(s==null? '': s).replace(/
-?
-/g,'<br>');
-    // Normalisasi & unique (abaikan spasi/kasus) untuk konsistensi filter
+    const nl2br = s => String(s==null? '': s).replace(/\r?\n/g,'<br>');
     const norm = s => String(s==null? '': s).trim();
     const toKey = s => norm(s).toLowerCase();
     const uniqNorm = (arr) => {
@@ -211,15 +206,14 @@
       return out.filter(r=> r.some(cell => (cell||'').trim().length));
     }
 
-    // GViz JSON → {header, rows}
+    // GViz JSON → {rows}
     function parseGVizJSON(txt){
       try{
         const json = JSON.parse(txt.slice(txt.indexOf('(')+1, txt.lastIndexOf(')')));
-        const cols = json.table.cols; const rs = json.table.rows;
-        const header = cols.map(c=>c.label||c.id||'');
+        const rs = json.table.rows;
         const body = rs.map(r => (r.c||[]).map(c => c ? (c.f ?? c.v ?? '') : ''));
-        return {header, rows: body};
-      }catch{ return {header:[], rows:[]}; }
+        return {rows: body};
+      }catch{ return {rows: []}; }
     }
 
     async function fetchWithTimeout(url, ms=12000){
@@ -232,7 +226,7 @@
     }
 
     async function getData(){
-      const order = [GVIZ_JSON, GVIZ_CSV, MIRROR(GVIZ_JSON), MIRROR(GVIZ_CSV)];
+      const order = [GVIZ_JSON, GVIZ_CSV, MIRROR_HTTPS(GVIZ_JSON), MIRROR_HTTPS(GVIZ_CSV), MIRROR_HTTP(GVIZ_JSON), MIRROR_HTTP(GVIZ_CSV)];
       let lastErr = '';
       for(const url of order){
         try{
@@ -309,29 +303,13 @@
         i += CHUNK; if(i < filtered.length) requestAnimationFrame(step);
       }
       requestAnimationFrame(step);
-    });
-
-      if(!filtered.length){
-        $grid.hidden = true; $status.hidden = false; $status.textContent = 'Tidak ada data yang cocok dengan filter.'; $status.setAttribute('aria-busy','false');
-        return;
-      }
-
-      $status.hidden = true; $grid.hidden = false; $grid.innerHTML = '';
-      const CHUNK = 48; let i=0;
-      function step(){
-        const slice = filtered.slice(i, i+CHUNK);
-        let html=''; for(const r of slice) html += templateCard(r);
-        $grid.insertAdjacentHTML('beforeend', html);
-        i += CHUNK; if(i < filtered.length) requestAnimationFrame(step);
-      }
-      requestAnimationFrame(step);
     }
 
-    function openModal(payload){
-      $dJob.textContent = payload.job || '-';
-      $dParent.textContent = payload.parent ? `Job Parent: ${payload.parent}` : '-';
-      $dArea.textContent = payload.area || '-';
-      $dQual.innerHTML = nl2br(payload.qual || '-');
+    function openModal({job,parent,area,qual}){
+      $dJob.textContent = job || '-';
+      $dParent.textContent = parent ? `Job Parent: ${parent}` : '-';
+      $dArea.textContent = area || '-';
+      $dQual.innerHTML = nl2br(qual || '-');
       if(typeof $dlg.showModal === 'function') $dlg.showModal(); else $dlg.setAttribute('open','');
     }
     function closeModal(){ if($dlg.open) $dlg.close(); else $dlg.removeAttribute('open'); }
