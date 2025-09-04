@@ -51,9 +51,8 @@
 
     .card{position:relative;border:1px solid var(--line);background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 14px;transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease}
     .card:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(0,0,0,.08);border-color:#bae6fd}
-    .label{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#0c4a6e;background:#e0f2fe;padding:3px 8px;border-radius:999px;font-weight:800;letter-spacing:.2px}
     .job-title{margin:2px 0 4px;font-size:12px;font-weight:800;color:#083344}
-    .job-parent{font-size:9px;font-weight:400;color:#0b4c57;margin:2px 0 8px}
+    .job-parent{font-size:10px;font-weight:600;color:#0b4c57;margin:2px 0 8px}
     .loc{display:flex;align-items:center;gap:8px;font-size:12px;color:#0b3d44}
     .loc svg{width:16px;height:16px;flex:0 0 auto}
     .show-more{margin-top:12px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer}
@@ -74,7 +73,6 @@
     .x{position:absolute;top:8px;right:10px;border:none;background:transparent;font-size:22px;line-height:1;cursor:pointer;color:#0f172a}
     .apply-btn{display:inline-flex;align-items:center;gap:8px}
 
-    /* Kurangi animasi jika user memilih reduced motion */
     @media (prefers-reduced-motion: no-preference){
       @keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.03)}100%{transform:scale(1)}}
       .logo{animation:pulse 3s ease-in-out infinite}
@@ -122,10 +120,13 @@
       <button class="x" id="dlg-x" aria-label="Tutup">×</button>
       <div class="title"><h2 id="dlg-job">-</h2></div>
       <div class="sub" id="dlg-parent">-</div>
-      <div class="meta"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z"/></svg><span id="dlg-branch">-</span></div>
+      <div class="meta">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5Z"/></svg>
+        <span id="dlg-area">-</span>
+      </div>
       <div class="qual" id="dlg-qual">-</div>
       <div class="actions">
-        <a class="btn btn-primary apply-btn" id="dlg-apply" href="https://apply.career-simgroup.com" target="_blank" rel="noopener" title="Apply di apply.career-simgroup.com">
+        <a class="btn btn-primary apply-btn" id="dlg-apply" href="https://apply.career-simgroup.com" target="_blank" rel="noopener noreferrer" title="Apply di apply.career-simgroup.com">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M5 12h9M12 5l7 7-7 7"/></svg>
           Apply
         </a>
@@ -138,7 +139,7 @@
   <div id="dbg" style="position:fixed;left:8px;bottom:8px;background:#00000099;color:#fff;padding:6px 8px;border-radius:8px;font:12px/1.3 ui-monospace,Menlo,monospace;z-index:9999;max-width:80vw;display:none"></div>
 
   <script>
-  ;(function(){
+  (function(){
     // ====== CONFIG (Dokumen yang Anda minta) ======
     const DOC_ID = '1ESGkZf2P_0XMnyJgb7wN_L_Xo144nO6GPg30rrBZW58';
     const SHEET  = 'Sheet1';
@@ -152,7 +153,7 @@
     const COL = { AREA:2, JOB_NAME:3, JOB_PARENT:4, QUAL:5 };
 
     // Cache ringan
-    const CACHE_KEY = 'lookerin_cache_v2';
+    const CACHE_KEY = 'lookerin_cache_v3';
 
     // ====== Elemen ======
     const $grid = document.getElementById('grid');
@@ -166,7 +167,7 @@
     const $dlgX = document.getElementById('dlg-x');
     const $dlgClose = document.getElementById('dlg-close');
     const $dJob = document.getElementById('dlg-job');
-    const $dBranch = document.getElementById('dlg-branch');
+    const $dArea = document.getElementById('dlg-area');
     const $dParent = document.getElementById('dlg-parent');
     const $dQual = document.getElementById('dlg-qual');
 
@@ -175,10 +176,18 @@
     // ====== Util ======
     const collator = new Intl.Collator('id');
     const uniq = arr => [...new Set(arr.filter(Boolean))].sort((a,b)=>collator.compare(a,b));
-    const esc = s => String(s||'').replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
-    const nl2br = s => String(s||'').replace(/
+    const esc = s => String(s==null? '': s).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+    const nl2br = s => String(s==null? '': s).replace(/
 ?
 /g,'<br>');
+    // Normalisasi & unique (abaikan spasi/kasus) untuk konsistensi filter
+    const norm = s => String(s==null? '': s).trim();
+    const toKey = s => norm(s).toLowerCase();
+    const uniqNorm = (arr) => {
+      const map = new Map();
+      for(const v of arr){ const k = toKey(v); if(k && !map.has(k)) map.set(k, v); }
+      return [...map.values()].sort((a,b)=>collator.compare(a,b));
+    };
 
     function setOptions(el, list, placeholder){
       el.innerHTML = `<option value="">${placeholder}</option>` + list.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
@@ -190,14 +199,13 @@
       for(let i=0;i<text.length;i++){
         const c=text[i];
         if(c==='"'){
-          if(inQ && text[i+1]==='"'){ cur+='"'; i++; } else inQ=!inQ;
-        }else if(c===',' && !inQ){ row.push(cur); cur=''; }
-        else if((c==='
-'||c==='
-') && !inQ){ if(c==='
-' && text[i+1]==='
-') i++; row.push(cur); out.push(row); row=[]; cur=''; }
-        else cur+=c;
+          if(inQ && text[i+1]==='"'){ cur+='"'; i++; }
+          else inQ=!inQ;
+        } else if(c===',' && !inQ){ row.push(cur); cur=''; }
+        else if((c==='\n' || c==='\r') && !inQ){
+          if(c==='\r' && text[i+1]==='\n') i++;
+          row.push(cur); out.push(row); row=[]; cur='';
+        } else cur+=c;
       }
       if(cur.length>0 || row.length){ row.push(cur); out.push(row); }
       return out.filter(r=> r.some(cell => (cell||'').trim().length));
@@ -216,8 +224,11 @@
 
     async function fetchWithTimeout(url, ms=12000){
       const ctrl = new AbortController(); const id = setTimeout(()=>ctrl.abort(), ms);
-      try{ const r = await fetch(url, {mode:'cors', cache:'no-cache', signal: ctrl.signal}); if(!r.ok) throw new Error('HTTP '+r.status); return await r.text(); }
-      finally{ clearTimeout(id); }
+      try{
+        const r = await fetch(url, {mode:'cors', cache:'no-cache', signal: ctrl.signal});
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        return await r.text();
+      } finally { clearTimeout(id); }
     }
 
     async function getData(){
@@ -227,35 +238,29 @@
         try{
           const text = await fetchWithTimeout(url);
           if(url.includes('out:json')){
-            const {header, rows} = parseGVizJSON(text);
-            if(rows.length) return {header, rows, source:url};
-          }else{ // csv
+            const {rows} = parseGVizJSON(text);
+            if(rows && rows.length) return {rows, source:url};
+          } else if(url.includes('out:csv')){
             const arr = parseCSV(text);
-            if(arr.length>1) return {header:arr[0], rows:arr.slice(1), source:url};
+            if(arr.length>1) return {rows:arr.slice(1), source:url};
           }
           lastErr = 'empty';
         }catch(e){ lastErr = e.message; }
       }
-      throw new Error('Semua sumber gagal ('+lastErr+').');
-    } = parseGVizJSON(text);
-            if(rows.length) return {header, rows, source:url};
-          }else if(url.includes('out:csv')){
-            const arr = parseCSV(text);
-            if(arr.length>1) return {header:arr[0], rows:arr.slice(1), source:url};
-          }
-        }catch(e){ console.warn('[fallback]', url, e.message); }
-      }
-      throw new Error('Tidak bisa mengambil data dari Google Sheets (JSON/CSV). Pastikan sharing: Anyone with link (Viewer).');
+      throw new Error('Semua sumber gagal ('+ lastErr +'). Pastikan Sheet dibuka untuk siapa saja dengan tautan (Viewer).');
     }
 
     function updateParentOptions(){
       const areaVal = $area.value;
-      const parents = uniq(rows.filter(r => !areaVal || r[COL.AREA] === areaVal).map(r => r[COL.JOB_PARENT]||''));
+      const key = toKey(areaVal);
+      const parents = uniqNorm(rows
+        .filter(r => !areaVal || toKey(r[COL.AREA]) === key)
+        .map(r => r[COL.JOB_PARENT]||''));
       setOptions($parent, parents, 'Semua Job Parent');
     }
 
     function fillFilters(){
-      const areas = uniq(rows.map(r => r[COL.AREA]||''));
+      const areas = uniqNorm(rows.map(r => r[COL.AREA]||''));
       setOptions($area, areas, 'Semua Area');
       updateParentOptions();
     }
@@ -280,11 +285,31 @@
     function render(){
       const selArea   = $area.value;
       const selParent = $parent.value;
+      const aKey = toKey(selArea);
+      const pKey = toKey(selParent);
       const filtered = rows.filter(r => {
-        const okA = selArea ? r[COL.AREA] === selArea : true;
-        const okP = selParent ? r[COL.JOB_PARENT] === selParent : true;
+        const rArea = toKey(r[COL.AREA]);
+        const rParent = toKey(r[COL.JOB_PARENT]);
+        const okA = aKey ? rArea === aKey : true;
+        const okP = pKey ? rParent === pKey : true;
         return okA && okP;
       });
+
+      if(!filtered.length){
+        $grid.hidden = true; $status.hidden = false; $status.textContent = 'Tidak ada data yang cocok dengan filter.'; $status.setAttribute('aria-busy','false');
+        return;
+      }
+
+      $status.hidden = true; $grid.hidden = false; $grid.innerHTML = '';
+      const CHUNK = 48; let i=0;
+      function step(){
+        const slice = filtered.slice(i, i+CHUNK);
+        let html=''; for(const r of slice) html += templateCard(r);
+        $grid.insertAdjacentHTML('beforeend', html);
+        i += CHUNK; if(i < filtered.length) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    });
 
       if(!filtered.length){
         $grid.hidden = true; $status.hidden = false; $status.textContent = 'Tidak ada data yang cocok dengan filter.'; $status.setAttribute('aria-busy','false');
@@ -305,7 +330,7 @@
     function openModal(payload){
       $dJob.textContent = payload.job || '-';
       $dParent.textContent = payload.parent ? `Job Parent: ${payload.parent}` : '-';
-      $dBranch.textContent = payload.area || '-';
+      $dArea.textContent = payload.area || '-';
       $dQual.innerHTML = nl2br(payload.qual || '-');
       if(typeof $dlg.showModal === 'function') $dlg.showModal(); else $dlg.setAttribute('open','');
     }
@@ -324,35 +349,38 @@
         });
       }
     });
-    $dlgX.addEventListener('click', closeModal);
-    $dlgClose.addEventListener('click', closeModal);
+    document.getElementById('dlg-x').addEventListener('click', closeModal);
+    document.getElementById('dlg-close').addEventListener('click', closeModal);
 
     $btnApply.addEventListener('click', render);
     $btnClear.addEventListener('click', ()=>{ $area.value=''; updateParentOptions(); $parent.value=''; render(); });
-    $area.addEventListener('change', ()=>{ updateParentOptions(); $parent.value=''; });
+    $area.addEventListener('change', ()=>{ updateParentOptions(); $parent.value=''; render(); });
+    $parent.addEventListener('change', render);
 
     // ====== Init ======
     (async function init(){
+      const dbg = document.getElementById('dbg');
       try{
-        // Cache dulu jika ada
+        // Render cache dulu kalau ada
         const cache = localStorage.getItem(CACHE_KEY);
         if(cache){
           const cached = JSON.parse(cache);
           if(Array.isArray(cached.rows) && cached.rows.length){
             rows = cached.rows; fillFilters(); render();
+            if(dbg){ dbg.style.display='block'; dbg.textContent = `Cache: ${rows.length} baris`; }
           }
         }
         // Ambil data fresh
-        const {rows: liveRows} = await getData();
-        rows = liveRows; fillFilters(); render();
+        const res = await getData();
+        rows = res.rows || [];
+        fillFilters(); render();
         localStorage.setItem(CACHE_KEY, JSON.stringify({rows}));
         $status.hidden = true; $grid.hidden = false; $status.setAttribute('aria-busy','false');
-        const dbg = document.getElementById('dbg'); if(dbg){ dbg.style.display='block'; dbg.textContent = `OK: ${rows.length} rows`; }
+        if(dbg){ dbg.style.display='block'; dbg.textContent = `Live: ${rows.length} baris` + (res.source? ` (src: ${res.source.includes('r.jina.ai')? 'mirror': 'gviz'})`: ''); }
       }catch(err){
         console.error('[LOOKERIN] load fail', err);
-        const dbg = document.getElementById('dbg'); if(dbg){ dbg.style.display='block'; dbg.textContent = 'ERR: '+ err.message; }
+        if(dbg){ dbg.style.display='block'; dbg.textContent = 'ERR: '+ err.message; }
         if(!rows.length){ $status.textContent = 'Gagal memuat data: ' + err.message; $status.setAttribute('aria-busy','false'); }
-      }
       }
     })();
   })();
